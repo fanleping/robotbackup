@@ -1,0 +1,225 @@
+MODULE Handle_IOsignal
+    PERS num Lang:=1;
+    CONST string stMsgState{2}:=["Expected signal state:",""];
+    CONST string fkRetry{2}:=["ReTry","Wiederholen"];
+    CONST string fkSkip{2}:=["Skip","Auslassen"];
+    CONST string sErrInputVal{2}:=["Waiting for signal"," Warte Auf Signal."];
+    
+    
+    
+    
+     CONST string stChkValue{2,3}:=[[".->Value Error","Value out of range.","Programmed value= "],
+                                 [" -> Wert Fehler","Wert ausserhalb des zulaessige Bereichs.","Programmierter Wert= "]];
+      CONST string signalvalue:="this the value";
+                                 
+                                 
+                                 
+    
+    
+    CONST string sprepresure_ok{2}:=[" Wait for prepresure ok.","Warte auf Vordruck okay"];
+    CONST string sprepresure_ok3{2}:=["Check the Gluecontroller","Ueberpruefe Klebesteuerung"];
+    
+    Const string stMsgPLCHandShake{3,2}:=[["Waiting for ","Warte auf "],
+                                      ["Robot set Signal `","Roboter setzte Signal `"],
+                                      ["Waiting for the release signal `","Roboter wartet auf Signal `"]];
+    PERS num tnum:=600;
+    VAR btnres answer;
+    VAR errnum Error_var;
+
+    PROC ChkInput(VAR signaldi signal,dionum value,num nTimeOut,string txtMsg{*}\num AlarmNo\num WarnNo\switch Skip\switch InPos)
+        VAR num nFKkey;
+        VAR string btnArrayUIMsg{5};
+        VAR errnum nDummy;
+        VAR bool bExit;
+        VAR bool bTimeOut;
+        VAR string msgArray{3};
+
+        msgArray{1}:=txtMsg{lang};
+        msgArray{2}:=stMsgState{lang}+ValToStr(value);
+
+        IF Present(InPos) WAitRob\InPos;
+        WaitDI signal,value\MaxTime:=nTimeOut\TimeFlag:=bTimeOut;
+        WHILE signal<>value and bExit=false DO
+            IF Present(AlarmNo) THEN
+
+            ELSEIF Present(WarnNo) THEN
+
+            ELSE
+
+            ENDIF
+            btnArrayUIMsg:=["","","","",""];
+            IF Present(Skip) OR OpMode()=OP_MAN_PROG btnArrayUIMsg:=[fkRetry{Lang},"",fkSkip{Lang},"",""];
+            nFKkey:=UIMessageBox(\Header:=sErrInputVal{Lang}+": "+ArgName(signal)\MsgArray:=msgArray\BtnArray:=btnArrayUIMsg\Icon:=iconInfo\DIBreak:=signal\BreakFlag:=nDummy);
+            IF nFKkey=3 bExit:=true;
+        ENDWHILE
+
+    BACKWARD
+        RETURN ;
+    ERROR
+        RETRY;
+    UNDO
+
+    ENDPROC
+    
+    PROC ChkOutput(VAR signaldo signal,dionum value,num nTimeOut,string txtMsg{*}\num AlarmNo\num WarnNo\switch Skip\switch Low\switch InPos)
+        VAR bool bTimeOut:=FALSE;
+        VAR num nFKkey;
+        VAR string sTextUIMsg{11};
+        VAR string btnArrayUIMsg{5};
+        VAR errnum nDummy;
+        VAR bool bExit;
+
+        IF Present(InPos) WAitRob\InPos;
+        WaitDO signal,value\MaxTime:=nTimeOut\TimeFlag:=bTimeOut;
+        WHILE DOUTput(signal)<>value and bExit=false DO
+            IF Present(AlarmNo) THEN
+                
+            ELSEIF Present(WarnNo) THEN
+               
+            ELSE
+                
+            ENDIF
+            btnArrayUIMsg:=["","","","",""];
+            IF Present(Skip) OR OpMode()=OP_MAN_PROG btnArrayUIMsg:=[fkRetry{Lang},"",fkSkip{Lang},"",""];
+            nFKkey:=UIMessageBox(\Header:=sErrInputVal{Lang}+": "+ArgName(signal)\Message:=txtMsg{Lang}\BtnArray:=btnArrayUIMsg\Icon:=iconInfo\DoBreak:=signal\BreakFlag:=nDummy);
+            IF nFKkey=3 bExit:=true;
+        ENDWHILE
+       
+    BACKWARD
+        RETURN ;
+    UNDO
+       
+    ENDPROC
+    
+    PROC ChkValue(num nvalue,num nMinValue,num nMaxValue,num nDec,string Header)
+        !
+        VAR btnres resAnswer;
+        VAR bool bOK;
+        VAR bool bTimeOut;
+
+        bTimeOut:=FALSE;
+        WHILE nValue<nMinValue OR nValue>nMaxValue DO
+            UIMsgBox\Header:=Header+stChkValue{Lang,1},stChkValue{Lang,2}\MsgLine2:="Minvalue= "+NumToStr(nMinValue,nDec)\MsgLine3:=" "\MsgLine4:="Maxvalue= "+NumToStr(nMaxValue,nDec)\MsgLine5:=stChkValue{Lang,3}+NumToStr(nValue,nDec)\Icon:=iconWarning;
+            WaitTime 1;
+            !
+        ENDWHILE
+        RETURN ;
+    ENDPROC
+    
+    
+    
+    PROC PlcHandShake(VAR signaldo sigDO,dionum doValue,VAR signaldi signal,dionum value,num nTimeOut,string txtMsg{*}\num AlarmNo\switch Skip\switch Throw)
+        SetDO sigDO,doValue;
+        IF Present(Throw) RETURN ;
+        ChkInput signal,value,nTimeOut,txtMsg\AlarmNo?AlarmNo\Skip?skip;
+        IF doValue=1 SetDO sigDO,0;
+        IF doValue=0 SetDO sigDO,1;
+    UNDO
+        IF doValue=1 SetDO sigDO,0;
+        IF doValue=0 SetDO sigDO,1;
+        !SetGO GoFaultUser,0;
+    ENDPROC
+    
+
+    PROC PLC_HandShake(VAR signaldo sigDO,VAR signaldi signal,num nTimeOut\switch InPos)
+        VAR num nFKkey;
+        VAR string btnArrayUIMsg{5};
+        VAR errnum nDummy;
+        VAR bool bExit;
+        VAR bool bTimeOut;
+        VAR string stHeader{2};
+        VAR string MsgArray{3};
+        VAR string MsgSig0{2}:=["Signal must be 0 before Handshake","Signal muss 0 sein vor Handshake"];
+        ! Set Message UIBox
+        stHeader:=["PLC_HandShake: Waiting!!","PLC_HandShake: Wartet auf..!!"];
+        MsgArray{1}:=stMsgPLCHandShake{1,Lang}+Argname(Signal)+":=1";
+        MsgArray{2}:=stMsgPLCHandShake{2,Lang}+ArgName(sigDo)+"`";
+        MsgArray{3}:=stMsgPLCHandShake{3,Lang}+ArgName(Signal)+"`";
+        IF Present(InPos) WAitRob\InPos;
+        !
+        SetDO sigDO,0;
+        ! Input must be low befor Handshake
+        WaitDI signal,low\MaxTime:=nTimeOut\TimeFlag:=bTimeOut;
+        WHILE signal<>low and bExit=false DO
+            btnArrayUIMsg:=["","","","",""];
+            nFKkey:=UIMessageBox(\Header:=sErrInputVal{Lang}+": "+ArgName(signal)\Message:=MsgSig0{Lang}\BtnArray:=btnArrayUIMsg\Icon:=iconInfo\DIBreak:=signal\DIPassive\BreakFlag:=nDummy);
+            IF nFKkey=3 bExit:=true;
+        ENDWHILE
+        !
+        SetDO sigDO,1;
+        WaitDI signal,high\MaxTime:=nTimeOut\TimeFlag:=bTimeOut;
+        WHILE signal<>high and bExit=false DO
+            btnArrayUIMsg:=["","","","",""];
+            nFKkey:=UIMessageBox(\Header:=stHeader{Lang}\MsgArray:=MsgArray\BtnArray:=btnArrayUIMsg\Icon:=iconInfo\DIBreak:=signal\BreakFlag:=nDummy);
+            IF nFKkey=3 bExit:=true;
+        ENDWHILE
+        Reset sigDO;
+    BACKWARD
+        RETURN ;
+    UNDO
+        Reset sigDO;
+    ENDPROC
+
+    PROC TestChkValue()
+        !tnum:=GInput(giInput1);
+        ChkValue tnum,50,100,2,signalvalue;
+        waittime 1000;
+        stop;
+    ENDPROC
+    
+    PROC TestChkInputUIMessageBox()
+        ChkInput diSensor,1,8,sErrInputVal;
+        waittime 1000;
+        stop;
+    ENDPROC
+    
+    PROC TestUIMsgBox()
+         WaitDI diSensor,1\MaxTime:=2;
+         
+         ERROR
+        
+        UIMsgBox\Header:=sprepresure_ok{Lang},""\MsgLine3:=sprepresure_ok3{Lang}\Buttons:=btnRetryCancel\Icon:=iconError\Result:=answer\DIBreak:=diSensor\BreakFlag:=Error_var;
+        TEST answer
+                CASE 0:
+                tnum:=0;
+                    RETRY;
+                CASE 1:
+                tnum:=1;
+                    Stop;
+                CASE 2:
+                tnum:=2;
+                    Stop;
+                CASE 3:
+                tnum:=3;
+                    RETRY;
+                CASE 4:
+                tnum:=4;
+                    Stop;
+                CASE 5:
+                tnum:=5;
+                    RETURN;
+                CASE 6:
+                tnum:=6;
+                    Stop;
+                CASE 7:
+                tnum:=7;
+                    Stop;
+                DEFAULT:
+                    IF Error_var=ERR_TP_DIBREAK THEN
+                        WaitTime 0.5;
+                        RETRY;
+                    ENDIF
+                ENDTEST
+               !IF errorno=err   THEN
+                   
+               !ENDIF
+               RETRY;
+    ENDPROC
+    
+    PROC rTestUIMsgBox()
+        TestUIMsgBox;
+        waittime 1000;
+        !TPWrite "In: FALSE, out: "\Bool:=myFunction(FALSE);
+        stop;
+    ENDPROC
+ENDMODULE
